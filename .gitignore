@@ -1,0 +1,8 @@
+
+# vim swap files
+*.swp
+*/*.swp
+*/*/*.swp
+
+# debugging stdout
+make.stdout
