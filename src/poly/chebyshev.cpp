@@ -3,6 +3,19 @@
 #include <assert.h>
 #include <TMath.h>
 using std::vector;
+//
+//calculates chebyshev polynomial of order n
+double poly::chebyshev(double x, int n)
+{
+  assert(n >= 0);
+  if (n == 0)
+    return 1;
+  else if (n == 1)
+    return x;
+  else
+    return 2.0*x*chebyshev(x, n-1) - chebyshev(x, n-2);
+}
+
 
 //calculates all chebyshev polynomials up to including degree n
 void poly::chebyshev(double x, int n, vector<double>& results)
@@ -63,3 +76,12 @@ void poly::correct_poly(const vector<double>& poly, vector<double>& correct, dou
     }
 }
 
+
+const double ONE_OVER_PI = 1.0/M_PI;
+const double TWO_OVER_PI = 2.0/M_PI;
+
+double poly::modified_heaviside(int order)
+{
+  if (order == 0) return ONE_OVER_PI;
+  else  return TWO_OVER_PI;
+}

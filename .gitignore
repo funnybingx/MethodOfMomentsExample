@@ -1,8 +1,11 @@
 
 # vim swap files
-*.swp
-*/*.swp
-*/*/*.swp
+.*.swp
+*/.*.swp
+*/*/.*.swp
 
 # debugging stdout
 make.stdout
+
+# plops
+*.pdf
