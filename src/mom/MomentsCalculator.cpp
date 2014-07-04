@@ -15,12 +15,15 @@ MomentsCalculator::MomentsCalculator(unsigned int order, RooRealVar* x, RooRealV
     _wvar(w)
 {
   // reserve memory for coefficients in chebyshev basis
-  std::vector<double> temp ( _order, 0.0 );
-  _chebyshevBasisCoefficients = temp;
+  _chebyshevBasisCoefficients = std::vector<double> ( _order, 0.0 );
+  _coefficientsRRVs = std::vector<RooRealVar*>( _order, NULL );
 }
 
 MomentsCalculator::~MomentsCalculator()
 {
+  // dealocate the RooRealVal coefficients
+  for (unsigned int irrv=0; irrv<_coefficientsRRVs.size(); ++irrv)
+    delete _coefficientsRRVs[irrv];
 }
 
 std::vector<double> MomentsCalculator::run(const RooDataSet& dataset)
@@ -33,10 +36,10 @@ std::vector<double> MomentsCalculator::run(const RooDataSet& dataset)
 
 void MomentsCalculator::calculateMoments(const RooDataSet& dataset)
 {
-  //
+  //---------------------------------------------------------------------------
   // actually run the method of moments (in the Chebyshev basis) over the data
   // populates the vector of Chebyshev coefficients
-  //
+  //---------------------------------------------------------------------------
   double entries_norm = dataset.sumEntries(); // takes care of weights if exist
   // loop over all orders (==coefficients, since 1D)
   for (unsigned int i=0; i<_order; ++i)
@@ -69,32 +72,35 @@ void MomentsCalculator::convertToSimplePoly()
 RooChebychev* MomentsCalculator::getRooPdf()
 {
   // get a RooChebychev pdf with these coefficients
-  vector<RooRealVar*> vecRRVs ( _order, NULL ); // FIXME MEM LEAK
-  RooArgList chebyCoefficients = this->convertToRooArgList(vecRRVs, "cheby");
-  if (_debug) chebyCoefficients.Print();
-  RooChebychev* out = new RooChebychev("pdf", "pdf", *_xvar, chebyCoefficients);
-  //delete here?
-  return out;
+  RooArgList chebyCoefficientsRAL = this->convertToRooArgList("cheby");
+  if (_debug) chebyCoefficientsRAL.Print();
+  return new RooChebychev("pdf", "pdf", *_xvar, chebyCoefficientsRAL);
 }
 
-RooArgList MomentsCalculator::convertToRooArgList(vector<RooRealVar*>& v, TString which)
+RooArgList MomentsCalculator::convertToRooArgList(TString which)
 {
   // go through vector of coefficients and build a RooArgList of RooRealVars
   RooArgList out;
-  for (unsigned int icoeff=0; icoeff<_order; ++icoeff)
+  assert(_chebyshevBasisCoefficients.size() > 1);
+
+  for (unsigned int icoeff=1; icoeff<_order; ++icoeff)
   {
-    TString name="a"; name += icoeff;
+    // need to rescale everything by the zeroth coefficient to make a RooFit 
+    // format coefficient list ... RF counts from 1st order, we count from 0th
+    TString n="a"; n += icoeff;
+    double coeff_RooFit_counting; 
     if (which == "cheby")
-      v[icoeff] = new RooRealVar(name, name, _chebyshevBasisCoefficients[icoeff]);
+      coeff_RooFit_counting = _chebyshevBasisCoefficients[icoeff]/_chebyshevBasisCoefficients[0];
     else if (which == "simple")
-      v[icoeff] = new RooRealVar(name, name, _simplePolyBasisCoefficients[icoeff]);
+      coeff_RooFit_counting = _simplePolyBasisCoefficients[icoeff]/_simplePolyBasisCoefficients[0];
     else
     {
       cerr << "MomentsCalculator::convertToRooArgList ERROR:"
           " unrecognised option: " << which << endl;
       assert(false);
     }
-    out.add(*v[icoeff]);
+    _coefficientsRRVs[icoeff] = new RooRealVar(n, n, coeff_RooFit_counting);
+    out.add(*_coefficientsRRVs[icoeff]);
   }
   return out;
 }
