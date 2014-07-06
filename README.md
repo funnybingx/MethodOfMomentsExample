@@ -16,12 +16,6 @@ Requirements
 * gcc >= 4.8.1
 
 If you're an LHCb collaborator, I made this in a _Urania v2r0p1_ environment.
-=======
-* root.cern.ch > 5.34/18
-* gcc >= 4.8.1
-* boost (I use boost::program_options)
-
-If you're an LHCb collaborator, I made this in a Urania v2r0p1 environment.
 So for an LHCb environment do
 ```bash
 SetupProject Urania v2r0p1
