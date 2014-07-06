@@ -26,7 +26,7 @@ MomentsCalculator::~MomentsCalculator()
     delete _coefficientsRRVs[irrv];
 }
 
-std::vector<double> MomentsCalculator::run(const RooDataSet& dataset)
+vector<double> MomentsCalculator::run(const RooDataSet& dataset)
 {
   // runs all steps in order
   this->calculateMoments(dataset);
