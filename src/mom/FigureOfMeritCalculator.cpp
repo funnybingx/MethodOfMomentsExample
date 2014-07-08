@@ -85,7 +85,7 @@ double FigureOfMeritCalculator::chi2Ndof(RooAbsPdf* pdf, int extraNdof)
 
 void FigureOfMeritCalculator::populateBinnedDataArrays()
 {
-  cout << "FigureOfMeritCalculator::populateBinnedDataArrays INFO: filling" << endl;
+  //cout << "FigureOfMeritCalculator::populateBinnedDataArrays INFO: filling" << endl;
 
   // reserve empty arrays for the data
   _binnedData  = vector<double> (_nbins, 0.0);
@@ -116,9 +116,13 @@ double FigureOfMeritCalculator::integratePdfOverBin(int ibin, RooAbsPdf* pdf)
   // Have to calculate fractional integral in this bin range. The full pdf is 
   // not nessicarily normalised so do fraction by hand.
   //---------------------------------------------------------------------------
-  double unNormalisedTotal = pdf->createIntegral(RooArgSet(*_xvar))->getVal();
+  RooAbsReal* theUnormIntegral=pdf->createIntegral(RooArgSet(*_xvar));
+  double unNormalisedTotal = theUnormIntegral->getVal();
   TString r="bin_"; r+=ibin;
-  _xvar->setRange(r, _binEdgesLo[ibin], _binEdgesHi[ibin]);
-  double rangeInt = pdf->createIntegral(RooArgSet(*_xvar), r)->getVal();
+  if(!_xvar->hasRange(r))
+    _xvar->setRange(r, _binEdgesLo[ibin], _binEdgesHi[ibin]);
+  RooAbsReal* theRangeIntegral=pdf->createIntegral(RooArgSet(*_xvar), r);
+  double rangeInt = theRangeIntegral->getVal();
+  delete theUnormIntegral;delete theRangeIntegral;
   return rangeInt / unNormalisedTotal;
 }

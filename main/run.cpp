@@ -40,6 +40,7 @@ struct config // configuration for this executable
   int ndata;  
   int ntoys;
   bool fit;
+  bool save;
   int ordermom;
 };
 
@@ -52,10 +53,11 @@ int parseOptions(config &c, int argc, char *argv[])
   po::options_description desc("Allowed options") ;
   desc.add_options()
       ("help,h", "show this help")
-      ("debug", po::bool_switch(&c.debug)->default_value(true), "run in debug")
+      ("debug", po::bool_switch(&c.debug)->default_value(false), "run in debug")
       ("ndata", po::value<int>(&c.ndata)->default_value(5000), "toy generated stats")
       ("ntoys", po::value<int>(&c.ntoys)->default_value(1), "number of toys to run")
       ("fit", po::bool_switch(&c.fit), "also run a fit over each toy")
+      ("save", po::bool_switch(&c.save)->default_value(true), "save dataset with bad pvalue")  
       ("order-mom,o", po::value<int>(&c.ordermom)->default_value(3), "max order of the MoM")
       ;
 
@@ -132,6 +134,7 @@ void plot(RooRealVar* x, RooDataSet* d, RooAbsPdf* orig, RooAbsPdf* mom,
   TString name = "plots/toy";
   name+=itoy;
   canvas.SaveAs(name+".pdf");
+  delete frame;
   return;
 }
 
@@ -139,21 +142,14 @@ void runFit(RooChebychev*& fitPdf, RooRealVar* x,
             vector<RooRealVar*>& fitCoeffs, RooDataSet* toyData)
 {
   RooArgList ral;
-  cout << "0" << endl;
-  cout << fitCoeffs.size() << endl;
   for (unsigned int icoef=0; icoef<fitCoeffs.size(); ++icoef) {
-    cout << icoef << endl;
     TString name = "fc"; name+=icoef;
-    cout << name << endl;
     fitCoeffs[icoef] = new RooRealVar(name, name, 0.5, -1.0, 1.0);
-    fitCoeffs[icoef]->Print();
+    //fitCoeffs[icoef]->Print();
     ral.add(*fitCoeffs[icoef]);
   }
-  cout << "1" << endl;
   fitPdf = new RooChebychev("fitpdf", "Fitted Cheby pdf", *x, ral);
-  cout << "2" << endl;
   fitPdf->fitTo( *toyData );
-  cout << "5" << endl;
   return;
 }
 
@@ -168,22 +164,48 @@ int main(int argc, char *argv[])
   RooRealVar* x = new RooRealVar("x", "x", -1, 1);
 
   // build a toy pdf for toy data
-  RooRealVar c1("c1", "linear order coeff", 0.0);
+  RooRealVar c1("c1", "linear order coeff",0.2);
   RooRealVar c2("c2", "quadratic order coeff", 0.5);
-  RooPolynomial toyPdf("toypdf", "Toy pdf polynomial", *x, RooArgList(c1, c2));
-  RooRandom::randomGenerator()->SetSeed(0);
+  RooChebychev toyPdf("toypdf","Toy pdf polynomial", *x, RooArgList(c1,c2));
+  //RooPolynomial toyPdf("toypdf", "Toy pdf polynomial", *x, RooArgList(c1, c2));
+  RooRandom::randomGenerator()->SetSeed(123456789);
 
   // histograms for FoM's of many toys
   TH1D* hpval_orig = new TH1D("hpval_orig","P-values",100,-6,0); 
-  TH1D* hpval_mom =  new TH1D("hpval_mom","P-values",100,-6,0); 
-  TH1D* hpval_fit =  new TH1D("hpval_fit","P-values",100,-6,0); 
+  TH1D* hpval_mom  = new TH1D("hpval_mom","P-values",100,-6,0); 
+  TH1D* hpval_fit  = new TH1D("hpval_fit","P-values",100,-6,0); 
   binLogX(hpval_orig); // make the x-axis binning logarithmic
   binLogX(hpval_mom);
   binLogX(hpval_fit);
   TH1D* hchi2_orig = new TH1D("hchi2_orig", "Distributions of #chi^{2}/ndof", 100, 0.0, 2.5);
-  TH1D* hchi2_mom = new TH1D("hchi2_fit", "Distributions of #chi^{2}/ndof", 100, 0.0, 2.5);
-  TH1D* hchi2_fit = new TH1D("hchi2_fit", "Distributions of #chi^{2}/ndof", 100, 0.0, 2.5);
-
+  TH1D* hchi2_mom  = new TH1D("hchi2_mom", "Distributions of #chi^{2}/ndof", 100, 0.0, 2.5);
+  TH1D* hchi2_fit  = new TH1D("hchi2_fit", "Distributions of #chi^{2}/ndof", 100, 0.0, 2.5);
+  
+  // declare tree storing information
+  double chi2_fit=0.,chi2_mom=0.,chi2_orig=0.;
+  double pval_fit=0.,pval_mom=0.,pval_orig=0.;
+  const int const_order=c.ordermom;
+  double mom_vars[const_order][const_order];
+  double mom_vals[const_order];
+  TTree fomTree("fomTree","fomTree");
+  fomTree.Branch("pval_orig", &pval_orig);
+  fomTree.Branch("pval_mom",  &pval_mom);
+  fomTree.Branch("pval_fit",  &pval_fit);
+  fomTree.Branch("chi2_orig", &chi2_orig);
+  fomTree.Branch("chi2_mom",  &chi2_mom);
+  fomTree.Branch("chi2_fit",  &chi2_fit);
+  for(int iv=0;iv<c.ordermom;++iv)
+    {
+      char brName[512];
+      sprintf(brName,"mom_val_%d",iv);
+      fomTree.Branch(brName,&mom_vals[iv]);
+      for(int jv=0;jv<c.ordermom;++jv)
+	{
+	  sprintf(brName,"mom_var_%d_%d",iv,jv);
+	  fomTree.Branch(brName,&mom_vars[iv][jv]);
+	}
+    }
+    
   // loop and generate toys
   for (int itoy=0; itoy<c.ntoys; ++itoy) {
     RooDataSet* toyData = toyPdf.generate(RooArgSet(*x), c.ndata);
@@ -194,6 +216,16 @@ int main(int argc, char *argv[])
     moments.run(*toyData);
     RooChebychev* momPdf = moments.getRooPdf();
     if (c.debug) momPdf->Print();
+    
+    // get the moments and variances
+    vector<double> moment_vals = moments.getMoments();
+    vvd variances              = moments.getVariances();
+    for(int iv=0;iv<c.ordermom;++iv)
+      {
+	mom_vals[iv]=moment_vals[iv];
+	for(int jv=0;jv<c.ordermom;++jv)
+	  mom_vars[iv][jv]=variances[iv][jv];
+      }
 
     // also run a RooFit fit 
     RooChebychev* fitPdf=NULL;
@@ -203,25 +235,44 @@ int main(int argc, char *argv[])
       runFit(fitPdf, x, fitCoeffs, toyData);
     }
 
-    FigureOfMeritCalculator fom(50, toyData, x);
-    cout << "run::main INFO: the FoM w.r.t the original gen pdf" << endl;
-    fom.print(&toyPdf);
-    hpval_orig->Fill( fom.pvalue(&toyPdf) );
-    hchi2_orig->Fill( fom.chi2Ndof(&toyPdf) );
-
-    cout << "run::main INFO: the FoM w.r.t the MoM pdf" << endl;
-    fom.print(momPdf);
-    hpval_mom->Fill( fom.pvalue(momPdf) );
-    hchi2_mom->Fill( fom.chi2Ndof(momPdf) );
-    if (fitPdf) {
-      cout << "run::main INFO: the FoM w.r.t the fitted pdf" << endl;
-      fom.print(fitPdf);
-      hpval_fit->Fill( fom.pvalue(fitPdf) );
-      hchi2_fit->Fill( fom.chi2Ndof(fitPdf) );
+    FigureOfMeritCalculator fom(50, toyData, x);    
+    if(c.debug){
+      cout << "run::main INFO: the FoM w.r.t the original gen pdf" << endl;
+      fom.print(&toyPdf);
     }
-
-    plot(x, toyData, &toyPdf, momPdf, fitPdf, itoy);
-
+    chi2_orig = fom.chi2Ndof(&toyPdf);
+    pval_orig = fom.pvalue(&toyPdf);
+    hpval_orig->Fill( pval_orig );
+    hchi2_orig->Fill( chi2_orig );
+    
+    if(c.debug){
+      cout << "run::main INFO: the FoM w.r.t the MoM pdf" << endl;
+      fom.print(momPdf);
+    }
+    chi2_mom = fom.chi2Ndof(momPdf);
+    pval_mom = fom.pvalue(momPdf);
+    hpval_mom->Fill( pval_mom );
+    hchi2_mom->Fill( chi2_mom );
+    if (fitPdf) {
+      if(c.debug){
+	cout << "run::main INFO: the FoM w.r.t the fitted pdf" << endl;
+	fom.print(fitPdf);
+      }
+      chi2_fit = fom.chi2Ndof(fitPdf);
+      pval_fit = fom.pvalue(fitPdf);
+      hpval_fit->Fill( pval_fit );
+      hchi2_fit->Fill( chi2_fit );
+    }
+    if(pval_mom<0.0001){
+      plot(x, toyData, &toyPdf, momPdf, fitPdf, itoy);
+      if(c.save){
+	char dataFileName[512];
+	sprintf(dataFileName,"plots/bad_pvalue_dataset_%d.root",itoy);
+	toyData->SaveAs(dataFileName);
+      }
+    }
+    fomTree.Fill();
+    
     // free up mem
     for (unsigned int icoeff=0; icoeff<fitCoeffs.size(); ++icoeff)
       delete fitCoeffs[icoeff];
@@ -235,8 +286,8 @@ int main(int argc, char *argv[])
   output.cd();
   hpval_orig->Write(); hpval_mom->Write(); hpval_fit->Write();
   hchi2_orig->Write(); hchi2_mom->Write(); hchi2_fit->Write();
+  fomTree.Write();
   output.Close();
-
   delete hpval_orig; delete hpval_mom; delete hpval_fit;
   delete hchi2_orig; delete hchi2_mom; delete hchi2_fit;
   return 0;
