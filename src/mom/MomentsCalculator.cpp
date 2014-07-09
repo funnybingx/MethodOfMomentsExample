@@ -12,7 +12,8 @@ using std::endl;
 MomentsCalculator::MomentsCalculator(unsigned int order, RooRealVar* x, RooRealVar* w) :
     _order(order),
     _xvar(x),
-    _wvar(w)
+    _wvar(w),
+    _debug(false)
 {
   // reserve memory for coefficients in chebyshev basis
   _chebyshevBasisCoefficients = std::vector<double> ( _order, 0.0 );
