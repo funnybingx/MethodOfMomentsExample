@@ -15,7 +15,8 @@ using std::endl;
 LegendreMomentsCalculator::LegendreMomentsCalculator(unsigned int order, RooRealVar* x, RooRealVar* w) :
     _order(order),
     _xvar(x),
-    _wvar(w)
+    _wvar(w),
+    _debug(false)
 {
   // reserve memory for coefficients in chebyshev basis
   _legendreBasisCoefficients = std::vector<double> ( _order, 0.0 );
@@ -91,8 +92,10 @@ void LegendreMomentsCalculator::calculateVariances(const RooDataSet& dataset)
         double x = ras->getRealValue(_xvar->GetName());
         double w = 1.0; // optional weight
         if (_wvar) w = ras->getRealValue(_wvar->GetName());
-        double term1 = (boost::math::legendre_p(i, x))-_legendreBasisCoefficients[i];
-        double term2 = (boost::math::legendre_p(j, x))-_legendreBasisCoefficients[j];
+        double orthog_i = 2.0 / (2.0*i + 1.0);
+        double orthog_j = 2.0 / (2.0*j + 1.0);
+        double term1 = (boost::math::legendre_p(i, x)/orthog_i)-_legendreBasisCoefficients[i];
+        double term2 = (boost::math::legendre_p(j, x)/orthog_j)-_legendreBasisCoefficients[j];
         this_variance += w*( term1*term2 );
       }
       // persist normalised coefficients
@@ -112,7 +115,6 @@ RooAddPdf* LegendreMomentsCalculator::getRooPdf()
   for (unsigned int icoeff=0; icoeff<_order; ++icoeff) {
     TString n="legendreTerm"; n+=icoeff;
     _legendreTerms[icoeff] = new RooLegendre(n, n, *_xvar, icoeff); 
-    _legendreTerms[icoeff]->Print(); // half completes
     legendreTermsRAL.add( *_legendreTerms[icoeff] );
     // a new P_l^m (x) where  l=icoeff (this term's order) m=0
     // RooFit's RooLegendre implementation swaps the order to that of the boost
