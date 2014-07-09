@@ -15,7 +15,7 @@ Requirements
 * root.cern.ch > 6.34/18
 * gcc >= 4.8.1
 
-If you're an LHCb collaborator, I made this in a _Urania v2r0p1_ environment.
+If you're an LHCb collaborator, I made this in a `Urania v2r0p1` environment.
 So for an LHCb environment do
 ```bash
 SetupProject Urania v2r0p1

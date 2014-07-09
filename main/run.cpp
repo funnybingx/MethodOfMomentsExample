@@ -60,7 +60,7 @@ int parseOptions(config &c, int argc, char *argv[])
       ("ndata", po::value<int>(&c.ndata)->default_value(5000), "toy generated stats")
       ("ntoys", po::value<int>(&c.ntoys)->default_value(1), "number of toys to run")
       ("fit", po::bool_switch(&c.fit), "also run a fit over each toy")
-      ("save", po::bool_switch(&c.save)->default_value(true), "save dataset with bad pvalue")  
+      ("save", po::bool_switch(&c.save)->default_value(false), "save dataset with bad pvalue")  
       ("order-mom,o", po::value<int>(&c.ordermom)->default_value(3), "max order of the MoM")
       ;
 
