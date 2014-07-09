@@ -5,8 +5,8 @@
 #include "boost/program_options.hpp"
 
 // ROOT
- #include <TFile.h>
- #include <TStyle.h>
+#include <TFile.h>
+#include <TStyle.h>
 #include <TMath.h>
 #include <TCanvas.h>
 #include <TLegend.h>
@@ -18,7 +18,7 @@
 #include <RooArgSet.h>
 #include <RooArgList.h>
 #include <RooRealVar.h>
-#include <RooPolynomial.h>
+#include <RooAddPdf.h>
 #include <RooDataSet.h>
 #include <RooChebychev.h>
 #include <RooFit.h>
@@ -26,6 +26,7 @@
 
 // MoM framework
 #include "mom/MomentsCalculator.hpp"
+#include "mom/LegendreMomentsCalculator.hpp"
 #include "mom/FigureOfMeritCalculator.hpp"
 
 namespace rf = RooFit; 
@@ -138,6 +139,32 @@ void plot(RooRealVar* x, RooDataSet* d, RooAbsPdf* orig, RooAbsPdf* mom,
   return;
 }
 
+void plot(RooRealVar* x, RooDataSet* d, RooAbsPdf* orig, RooAbsPdf* mom,
+          RooAbsPdf* mom2, RooAbsPdf* fitted=NULL, int itoy=0)
+{
+  TCanvas canvas;
+  TLegend leg(0.1,0.7,0.48,0.9);
+  RooPlot* frame = x->frame(50);
+  d->plotOn(frame, rf::Name("data"));
+  orig->plotOn(frame, rf::LineColor(kBlue), rf::Name("orig"));
+  mom->plotOn(frame, rf::LineColor(kRed), rf::Name("mom"));
+  mom2->plotOn(frame, rf::LineColor(kMagenta), rf::Name("mom2"));
+  if (fitted) fitted->plotOn(frame, rf::LineColor(kGreen), rf::Name("fitted"));
+  frame->Draw();
+  frame->SetTitle("Sam\'s 1D MoM implementation");
+  leg.AddEntry("data", "toy data", "p");
+  leg.AddEntry("orig", "original pdf", "l");
+  leg.AddEntry("mom", "MoM - Chebyshev", "l");
+  leg.AddEntry("mom2", "MoM - Legendre", "l");
+  if (fitted) leg.AddEntry("fitted", "RooFit", "l");
+  leg.Draw();
+  TString name = "plots/toy";
+  name+=itoy;
+  canvas.SaveAs(name+".pdf");
+  delete frame;
+  return;
+}
+
 void runFit(RooChebychev*& fitPdf, RooRealVar* x, 
             vector<RooRealVar*>& fitCoeffs, RooDataSet* toyData)
 {
@@ -180,7 +207,7 @@ int main(int argc, char *argv[])
   TH1D* hchi2_orig = new TH1D("hchi2_orig", "Distributions of #chi^{2}/ndof", 100, 0.0, 2.5);
   TH1D* hchi2_mom  = new TH1D("hchi2_mom", "Distributions of #chi^{2}/ndof", 100, 0.0, 2.5);
   TH1D* hchi2_fit  = new TH1D("hchi2_fit", "Distributions of #chi^{2}/ndof", 100, 0.0, 2.5);
-  
+
   // declare tree storing information
   double chi2_fit=0.,chi2_mom=0.,chi2_orig=0.;
   double pval_fit=0.,pval_mom=0.,pval_orig=0.;
@@ -195,17 +222,17 @@ int main(int argc, char *argv[])
   fomTree.Branch("chi2_mom",  &chi2_mom);
   fomTree.Branch("chi2_fit",  &chi2_fit);
   for(int iv=0;iv<c.ordermom;++iv)
+  {
+    char brName[512];
+    sprintf(brName,"mom_val_%d",iv);
+    fomTree.Branch(brName,&mom_vals[iv]);
+    for(int jv=0;jv<c.ordermom;++jv)
     {
-      char brName[512];
-      sprintf(brName,"mom_val_%d",iv);
-      fomTree.Branch(brName,&mom_vals[iv]);
-      for(int jv=0;jv<c.ordermom;++jv)
-	{
-	  sprintf(brName,"mom_var_%d_%d",iv,jv);
-	  fomTree.Branch(brName,&mom_vars[iv][jv]);
-	}
+      sprintf(brName,"mom_var_%d_%d",iv,jv);
+      fomTree.Branch(brName,&mom_vars[iv][jv]);
     }
-    
+  }
+
   // loop and generate toys
   for (int itoy=0; itoy<c.ntoys; ++itoy) {
     RooDataSet* toyData = toyPdf.generate(RooArgSet(*x), c.ndata);
@@ -216,16 +243,23 @@ int main(int argc, char *argv[])
     moments.run(*toyData);
     RooChebychev* momPdf = moments.getRooPdf();
     if (c.debug) momPdf->Print();
-    
+
     // get the moments and variances
     vector<double> moment_vals = moments.getMoments();
     vvd variances              = moments.getVariances();
     for(int iv=0;iv<c.ordermom;++iv)
-      {
-	mom_vals[iv]=moment_vals[iv];
-	for(int jv=0;jv<c.ordermom;++jv)
-	  mom_vars[iv][jv]=variances[iv][jv];
-      }
+    {
+      mom_vals[iv]=moment_vals[iv];
+      for(int jv=0;jv<c.ordermom;++jv)
+        mom_vars[iv][jv]=variances[iv][jv];
+    }
+
+    // run the method of moments using the Legendre polynomials
+    LegendreMomentsCalculator legendre(c.ordermom, x);
+    if (c.debug) moments.setDebug();
+    legendre.run(*toyData);
+    RooAddPdf* legendrePdf = legendre.getRooPdf();
+    if (c.debug) legendrePdf->Print();
 
     // also run a RooFit fit 
     RooChebychev* fitPdf=NULL;
@@ -234,6 +268,7 @@ int main(int argc, char *argv[])
       cout << "run::main INFO: will now declare pdf and run a fit" << endl;
       runFit(fitPdf, x, fitCoeffs, toyData);
     }
+      plot(x, toyData, &toyPdf, momPdf, legendrePdf, fitPdf, itoy);
 
     FigureOfMeritCalculator fom(50, toyData, x);    
     if(c.debug){
@@ -244,7 +279,7 @@ int main(int argc, char *argv[])
     pval_orig = fom.pvalue(&toyPdf);
     hpval_orig->Fill( pval_orig );
     hchi2_orig->Fill( chi2_orig );
-    
+
     if(c.debug){
       cout << "run::main INFO: the FoM w.r.t the MoM pdf" << endl;
       fom.print(momPdf);
@@ -255,8 +290,8 @@ int main(int argc, char *argv[])
     hchi2_mom->Fill( chi2_mom );
     if (fitPdf) {
       if(c.debug){
-	cout << "run::main INFO: the FoM w.r.t the fitted pdf" << endl;
-	fom.print(fitPdf);
+        cout << "run::main INFO: the FoM w.r.t the fitted pdf" << endl;
+        fom.print(fitPdf);
       }
       chi2_fit = fom.chi2Ndof(fitPdf);
       pval_fit = fom.pvalue(fitPdf);
@@ -266,17 +301,20 @@ int main(int argc, char *argv[])
     if(pval_mom<0.0001){
       plot(x, toyData, &toyPdf, momPdf, fitPdf, itoy);
       if(c.save){
-	char dataFileName[512];
-	sprintf(dataFileName,"plots/bad_pvalue_dataset_%d.root",itoy);
-	toyData->SaveAs(dataFileName);
+        char dataFileName[512];
+        sprintf(dataFileName,"plots/bad_pvalue_dataset_%d.root",itoy);
+        toyData->SaveAs(dataFileName);
       }
     }
     fomTree.Fill();
-    
+
+      plot(x, toyData, &toyPdf, momPdf, legendrePdf, fitPdf, itoy);
+      cout << "gellp" << endl;
+
     // free up mem
     for (unsigned int icoeff=0; icoeff<fitCoeffs.size(); ++icoeff)
       delete fitCoeffs[icoeff];
-    delete momPdf; delete fitPdf; delete toyData;
+    delete momPdf; delete fitPdf; delete toyData; delete legendrePdf;
   }
 
   // plot the histograms
