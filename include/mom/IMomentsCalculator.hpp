@@ -17,7 +17,7 @@ class IMomentsCalculator
   virtual std::vector<double> getMoments() = 0;
   virtual std::vector<std::vector<double>> getVariances() = 0;
   void setDebug(bool b=true) { _debug = b; }
- private:
+ protected:
   unsigned int _order;
   RooRealVar* _xvar;
   RooRealVar* _wvar; // optional weight, NULL <--> weight = 1

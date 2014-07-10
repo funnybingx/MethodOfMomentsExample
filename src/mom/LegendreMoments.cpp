@@ -1,5 +1,5 @@
 
-#include "mom/LegendreMomentsCalculator.hpp"
+#include "mom/LegendreMoments.hpp"
 #include <boost/math/special_functions/legendre.hpp>
 #include "utils/help.hpp"
 #include <RooArgSet.h>
@@ -9,14 +9,10 @@ using std::vector;
 using std::cout;
 using std::cerr;
 using std::endl;
+typedef std::vector<std::vector<double>> vvd;
 
-//namespace boost::math 
-
-LegendreMomentsCalculator::LegendreMomentsCalculator(unsigned int order, RooRealVar* x, RooRealVar* w) :
-    _order(order),
-    _xvar(x),
-    _wvar(w),
-    _debug(false)
+LegendreMoments::LegendreMoments(unsigned int order, RooRealVar* x, RooRealVar* w) :
+    IMomentsCalculator(order, x, w)
 {
   // reserve memory for coefficients in chebyshev basis
   _legendreBasisCoefficients = std::vector<double> ( _order, 0.0 );
@@ -27,7 +23,7 @@ LegendreMomentsCalculator::LegendreMomentsCalculator(unsigned int order, RooReal
   _legendreTerms = std::vector<RooLegendre*>( _order, NULL );
 }
 
-LegendreMomentsCalculator::~LegendreMomentsCalculator()
+LegendreMoments::~LegendreMoments()
 {
   // dealocate the RooRealVar coefficients and the RooLegendre terms
   for (unsigned int irrv=0; irrv<_coefficientsRRVs.size(); ++irrv)
@@ -36,14 +32,14 @@ LegendreMomentsCalculator::~LegendreMomentsCalculator()
     delete _legendreTerms[irlg];
 }
 
-void LegendreMomentsCalculator::run(const RooDataSet& dataset)
+void LegendreMoments::run(const RooDataSet& dataset)
 {
   // runs all steps in order
   this->calculateMoments(dataset);
   this->calculateVariances(dataset);
 }
 
-void LegendreMomentsCalculator::calculateMoments(const RooDataSet& dataset)
+void LegendreMoments::calculateMoments(const RooDataSet& dataset)
 {
   //---------------------------------------------------------------------------
   // actually run the method of moments (in the Legendre basis) over the data
@@ -72,7 +68,7 @@ void LegendreMomentsCalculator::calculateMoments(const RooDataSet& dataset)
   return;
 }
 
-void LegendreMomentsCalculator::calculateVariances(const RooDataSet& dataset)
+void LegendreMoments::calculateVariances(const RooDataSet& dataset)
 {
   //---------------------------------------------------------------------------
   // now calculate the variances i.e. second moments (in the Legendre basis)
@@ -107,7 +103,7 @@ void LegendreMomentsCalculator::calculateVariances(const RooDataSet& dataset)
   return;
 }
 
-RooAddPdf* LegendreMomentsCalculator::getRooPdf()
+RooAddPdf* LegendreMoments::getRooPdf()
 {
   // get a RooAddPdf of a series of Legendres with these coefficients
   RooArgList legendreCoefficientsRAL = this->convertToRooArgList();
@@ -125,7 +121,7 @@ RooAddPdf* LegendreMomentsCalculator::getRooPdf()
   return new RooAddPdf("pdf", "pdf", legendreTermsRAL, legendreCoefficientsRAL);
 }
 
-RooArgList LegendreMomentsCalculator::convertToRooArgList()
+RooArgList LegendreMoments::convertToRooArgList()
 {
   // go through vector of coefficients and build a RooArgList of RooRealVars
   RooArgList out;

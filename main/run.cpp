@@ -28,7 +28,7 @@
 // MoM framework
 #include "utils/help.hpp"
 #include "mom/MomentsCalculator.hpp"
-#include "mom/LegendreMomentsCalculator.hpp"
+#include "mom/LegendreMoments.hpp"
 #include "mom/FigureOfMeritCalculator.hpp"
 
 namespace rf = RooFit; 
@@ -258,7 +258,7 @@ int main(int argc, char *argv[])
     }
 
     // run the method of moments using the Legendre polynomials
-    LegendreMomentsCalculator legendre(c.ordermom, x);
+    LegendreMoments legendre(c.ordermom, x);
     if (c.debug) moments.setDebug();
     legendre.run(*toyData);
     RooAddPdf* legendrePdf = legendre.getRooPdf();
