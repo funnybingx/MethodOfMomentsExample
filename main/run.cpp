@@ -27,15 +27,17 @@
 
 // MoM framework
 #include "utils/help.hpp"
-#include "mom/MomentsCalculator.hpp"
+#include "mom/ChebyshevMoments.hpp"
 #include "mom/LegendreMoments.hpp"
 #include "mom/FigureOfMeritCalculator.hpp"
 
+// save on typing
 namespace rf = RooFit; 
 using std::cout;
 using std::cerr;
 using std::endl;
 using std::vector;
+typedef std::vector<std::vector<double>> vvd;
 
 struct config // configuration for this executable
 {
@@ -241,7 +243,7 @@ int main(int argc, char *argv[])
     RooDataSet* toyData = toyPdf.generate(RooArgSet(*x), c.ndata);
 
     // run the method of moment
-    MomentsCalculator moments(c.ordermom, x);
+    ChebyshevMoments moments(c.ordermom, x);
     if (c.debug) moments.setDebug();
     moments.run(*toyData);
     RooChebychev* momPdf = moments.getRooPdf();
