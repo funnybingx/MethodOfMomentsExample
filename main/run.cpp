@@ -321,7 +321,7 @@ int main(int argc, char *argv[])
       hpval_fit->Fill( pval_fit );
       hchi2_fit->Fill( chi2_fit );
     }
-    if(pval_cheb<0.0001  || pval_lgnd<0.0001){
+    if(pval_cheb<0.0001  || pval_lgnd<0.0001 || c.ntoys<10){
       plot(x, toyData, &toyPdf, momPdf, legendrePdf, fitPdf, itoy);
       if(c.save){
         char dataFileName[512];
